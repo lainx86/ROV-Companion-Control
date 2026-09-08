@@ -6,17 +6,26 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(Curses REQUIRED)
+find_package(Threads REQUIRED)
 
-add_executable(rov_control
-    src/main.cpp
+add_library(rov_core
+    src/config.cpp
+    src/network.cpp
+    src/process.cpp
+    src/controller.cpp
 )
+target_include_directories(rov_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(rov_core PUBLIC Threads::Threads)
+target_compile_options(rov_core PRIVATE -Wall -Wextra -Wpedantic)
+
+add_executable(rov_control src/main.cpp src/app.cpp src/app_view.cpp)
 target_include_directories(rov_control PRIVATE ${CURSES_INCLUDE_DIRS})
-target_link_libraries(rov_control PRIVATE ${CURSES_LIBRARIES} pthread)
+target_link_libraries(rov_control PRIVATE rov_core ${CURSES_LIBRARIES})
 target_compile_options(rov_control PRIVATE -Wall -Wextra -Wpedantic)
 
 enable_testing()
 add_executable(core_tests tests/core_tests.cpp)
-target_include_directories(core_tests PRIVATE ${CURSES_INCLUDE_DIRS})
-target_link_libraries(core_tests PRIVATE ${CURSES_LIBRARIES} pthread)
-target_compile_options(core_tests PRIVATE -Wall -Wextra -Wpedantic)
+target_link_libraries(core_tests PRIVATE rov_core)
+target_compile_options(core_tests PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
 add_test(NAME core_tests COMMAND core_tests)
+set_tests_properties(core_tests PROPERTIES TIMEOUT 15)

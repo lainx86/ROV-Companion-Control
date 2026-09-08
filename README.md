@@ -27,6 +27,35 @@ Jalankan dari terminal minimal 78×22:
 ./build/rov_control
 ```
 
+## Struktur kode
+
+```text
+src/
+├── main.cpp          # Entry point dan penanganan SIGINT
+├── config.hpp/.cpp   # Nilai default, validasi, baca/tulis konfigurasi JSON
+├── process.hpp/.cpp  # Lifecycle proses anak dan penangkapan output
+├── controller.hpp/.cpp # Pipeline kamera dan perintah MAVProxy
+├── network.hpp/.cpp  # IP lokal, subnet, dan pemindaian host
+├── app.hpp/.cpp      # Event loop, input keyboard, state, dan koordinasi modul
+└── app_view.cpp      # Rendering dashboard serta panel edit, scan, dan bantuan
+```
+
+`rov_core` berisi modul konfigurasi, proses, controller, dan jaringan, tanpa
+dependensi ncurses. Executable `rov_control` menambahkan lapisan TUI di atasnya.
+Semua API modul berada di namespace `rov`; helper internal tetap privat di file
+implementasi. Perubahan perintah GStreamer/MAVProxy berada di `controller.cpp`,
+sedangkan perubahan tampilan berada di `app_view.cpp`.
+
+Pemindaian jaringan mengembalikan `ScanResult` berisi daftar IP atau pesan error.
+`App` menjalankannya dalam thread dan meneruskan hasilnya melalui antrean event.
+Saat keluar, aplikasi membatalkan probe berikutnya dan menunggu probe aktif
+selesai sebelum melepas thread scan.
+
+`core_tests` memakai header dan library `rov_core` secara langsung. Test mencakup
+validasi konfigurasi, subnet, pembatalan scan, filter log, status awal controller,
+serta start/stop dan penangkapan output proses lokal; tidak memerlukan kamera,
+MAVProxy, atau terminal interaktif.
+
 ## Shortcut
 
 | Tombol | Fungsi |
