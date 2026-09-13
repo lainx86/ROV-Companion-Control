@@ -27,11 +27,14 @@ enable_testing()
 add_executable(core_tests tests/core_tests.cpp)
 target_link_libraries(core_tests PRIVATE rov_core)
 target_compile_options(core_tests PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+if(CMAKE_CROSSCOMPILING)
+    target_compile_definitions(core_tests PRIVATE ROV_CROSS_COMPILED)
+endif()
 add_test(NAME core_tests COMMAND core_tests)
 set_tests_properties(core_tests PROPERTIES TIMEOUT 15)
 
 find_package(Python3 COMPONENTS Interpreter QUIET)
-if(Python3_Interpreter_FOUND)
+if(Python3_Interpreter_FOUND AND NOT CMAKE_CROSSCOMPILING)
     add_test(NAME startup_scan_tests
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/startup_scan_tests.py
                 $<TARGET_FILE:rov_control> ${CMAKE_CROSSCOMPILING_EMULATOR})

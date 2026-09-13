@@ -71,6 +71,8 @@ int main() {
   assert(routineOutput("Setting pipeline to PLAYING ..."));
   assert(!routineOutput("ERROR: camera unavailable"));
 
+  // Process tests require executable children for the target architecture.
+#ifndef ROV_CROSS_COMPILED
   // Exercise the extracted process module without cameras, MAVProxy, or a TTY.
   std::mutex log_lock;
   std::condition_variable output_ready;
@@ -109,5 +111,6 @@ int main() {
   assert(states.size() == 3);
   assert(!states.at("CAM0") && !states.at("CAM1") && !states.at("MAVProxy"));
   controller.stop();
+#endif
   return 0;
 }
