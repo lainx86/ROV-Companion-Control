@@ -8,11 +8,37 @@
 #include <cassert>
 #include <chrono>
 #include <condition_variable>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <mutex>
 
 using namespace rov;
 
 int main() {
+  // Synthetic sysfs entries distinguish wired NICs from renamed Wi-Fi and
+  // virtual Ethernet devices without depending on the test machine's hardware.
+  char sysfs_template[] = "/tmp/rov-network-test-XXXXXX";
+  const char *sysfs_dir = mkdtemp(sysfs_template);
+  assert(sysfs_dir);
+  const auto sysfs = std::filesystem::path(sysfs_dir);
+  for (const auto *name : {"eth0", "enp3s0", "usb0", "eth_wifi", "wlan0",
+                           "docker0", "lo"}) {
+    const auto path = sysfs / name;
+    std::filesystem::create_directory(path);
+    std::ofstream(path / "type") << (std::string(name) == "lo" ? 772 : 1);
+    if (std::string(name) != "docker0" && std::string(name) != "lo")
+      std::filesystem::create_directory(path / "device");
+  }
+  std::filesystem::create_directory(sysfs / "eth_wifi" / "wireless");
+  std::filesystem::create_directory(sysfs / "wlan0" / "phy80211");
+  for (const auto *name : {"eth0", "enp3s0", "usb0"})
+    assert(isEthernetInterface(name, sysfs.string()));
+  for (const auto *name : {"eth_wifi", "wlan0", "docker0", "lo", "missing",
+                           "../eth0", ".", "..", "eth0;exit"})
+    assert(!isEthernetInterface(name, sysfs.string()));
+  std::filesystem::remove_all(sysfs);
+
   Config config;
   std::string error;
   assert(validate(config, error));
@@ -37,6 +63,11 @@ int main() {
   std::atomic<bool> cancelled{true};
   const auto scan = scanNetwork(cancelled);
   assert(scan.ips.empty() && scan.error.empty());
+  assert(chooseScanTarget({}, "192.168.1.198").empty());
+  assert(chooseScanTarget({"192.168.1.20"}, "192.168.1.198") == "192.168.1.20");
+  assert(chooseScanTarget({"192.168.1.20", "192.168.1.198"}, "192.168.1.198") ==
+         "192.168.1.198");
+  assert(chooseScanTarget({"192.168.1.20", "192.168.1.30"}, "192.168.1.198").empty());
   assert(routineOutput("Setting pipeline to PLAYING ..."));
   assert(!routineOutput("ERROR: camera unavailable"));
 

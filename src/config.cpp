@@ -74,8 +74,7 @@ bool saveConfig(const Config &cfg) {
        << "  \"mav_port0\": " << cfg.mav_port0 << ",\n"
        << "  \"mav_port1\": " << cfg.mav_port1 << ",\n"
        << "  \"mav_device\": \"" << jsonEscape(cfg.mav_device) << "\",\n"
-       << "  \"baudrate\": " << cfg.baudrate << ",\n"
-       << "  \"autostart\": " << (cfg.autostart ? "true" : "false") << "\n}\n";
+       << "  \"baudrate\": " << cfg.baudrate << "\n}\n";
   return static_cast<bool>(file);
 }
 Config loadConfig() {
@@ -105,7 +104,7 @@ Config loadConfig() {
   intField("mav_port0", cfg.mav_port0);
   intField("mav_port1", cfg.mav_port1);
   intField("baudrate", cfg.baudrate);
-  cfg.autostart = jsonValue(source, "autostart") == "true";
+  // Legacy "autostart" is ignored: startup now always scans, then starts streams.
   std::string error;
   return validate(cfg, error) ? cfg : Config{};
 }

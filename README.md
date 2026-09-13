@@ -15,10 +15,26 @@ python3 -m pip install --user MAVProxy
 
 ## Build dan test
 
+Binary release tersedia untuk Linux x86-64 dan ARM64 (Raspberry Pi OS Bookworm
+64-bit atau lebih baru). Binary dibangun pada Debian 12 dan membutuhkan glibc
+2.36+, libstdc++ dari GCC 12+, serta ncurses 6. GStreamer, MAVProxy, `iproute2`,
+dan `iputils-ping` tetap perlu dipasang pada perangkat. Pilih arsip yang sesuai
+arsitektur, ekstrak, lalu jalankan `./rov_control` dari folder hasil ekstraksi.
+
+Untuk membangun dari source:
+
 ```bash
 cmake -S . -B build
 cmake --build build
 ctest --test-dir build --output-on-failure
+```
+
+Build kedua paket release dalam Debian 12 (ARM64 diuji melalui QEMU):
+
+```bash
+mkdir -p release-output
+docker run --rm -v "$PWD:/src:ro" -v "$PWD/release-output:/out" \
+  debian:bookworm-slim sh /src/scripts/build-release.sh
 ```
 
 Jalankan dari terminal minimal 78×22:
@@ -26,6 +42,28 @@ Jalankan dari terminal minimal 78×22:
 ```bash
 ./build/rov_control
 ```
+
+Saat aplikasi dibuka, scan jaringan langsung berjalan di latar belakang. IP lokal
+perangkat sendiri tidak dimasukkan ke hasil scan. Target tersimpan dipakai jika
+masih ditemukan; jika hanya ada satu host, IP host itu langsung diterapkan dan
+disimpan. Jika ada beberapa host tanpa kecocokan target, pilih IP melalui panel
+hasil scan. Tombol `N` tetap membuka scan manual.
+
+Setelah target IP startup diterapkan, CAM0, CAM1, dan MAVProxy langsung dimulai
+dengan IP tersebut, tanpa perlu menekan `S`. Field `autostart` dari konfigurasi
+lama diabaikan dan tidak lagi ditampilkan sebagai opsi di panel edit.
+Scan gagal, hasil kosong, atau pembatalan pemilihan IP membatalkan autostart untuk
+sesi tersebut; konfigurasi target sebelumnya tetap dipertahankan. Tombol `S`
+tetap bisa dipakai setelahnya. Tombol `X` juga membatalkan autostart yang tertunda.
+Scan manual melalui `N` tidak memulai ulang proses secara otomatis.
+
+Scan startup dan tombol `N` hanya memakai Ethernet fisik dengan link aktif dan
+alamat IPv4. Wi-Fi, loopback, serta interface virtual seperti Docker diabaikan.
+Jika ada beberapa Ethernet yang memenuhi syarat, interface pertama dalam daftar
+`ip link` digunakan. Probe ping dan TCP diikat ke interface tersebut, sehingga
+tidak beralih ke rute default Wi-Fi. Tanpa Ethernet yang memenuhi syarat, aplikasi
+menampilkan error dan membatalkan autostart untuk sesi itu. IP lokal di dashboard
+juga mengikuti Ethernet. Aturan ini membatasi scan; rute stream tetap dikelola OS.
 
 ## Struktur kode
 
@@ -55,6 +93,14 @@ selesai sebelum melepas thread scan.
 validasi konfigurasi, subnet, pembatalan scan, filter log, status awal controller,
 serta start/stop dan penangkapan output proses lokal; tidak memerlukan kamera,
 MAVProxy, atau terminal interaktif.
+
+Jika interpreter Python 3 tersedia saat konfigurasi CMake, `startup_scan_tests`
+juga menguji startup melalui terminal simulasi dengan perintah jaringan dan
+stream tiruan, tanpa memindai jaringan nyata atau mengubah konfigurasi pengguna.
+Skenario scan berhasil memerlukan metadata NIC Ethernet fisik di `/sys/class/net`
+(kabel dan IP nyata tidak diperlukan), dan dilewati jika metadata itu tidak ada.
+Klasifikasi Ethernet/Wi-Fi/interface virtual diuji terpisah dengan fixture sysfs
+buatan pada `core_tests`.
 
 ## Shortcut
 

@@ -99,7 +99,7 @@ void App::draw() {
           " baud",
       "MAV UDP   : " + std::to_string(cfg_.mav_port0) + ", " +
           std::to_string(cfg_.mav_port1),
-      "Auto start: " + std::string(cfg_.autostart ? "Ya" : "Tidak")};
+      "Startup   : Scan Ethernet -> start semua"};
   for (int i = 0; i < static_cast<int>(config.size()); ++i)
     add(3 + i, config_x + 2, config[i], config_w - 4);
   box(2, status_x, 10, status_w, "Status");
@@ -144,7 +144,7 @@ void App::drawEdit(int rows, int cols) {
     add(y + 1 + i, x + 22, edit_[i].second, 44, attr);
   }
   add(y + 13, x + 2,
-      "Tab/↑↓ pindah · Space Auto start · Enter terapkan · Esc batal", 66,
+      "Tab/↑↓ pindah · Enter terapkan · Esc batal", 66,
       A_BOLD);
 }
 

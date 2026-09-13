@@ -14,7 +14,6 @@ struct Config {
   int mav_port1{14551};
   std::string mav_device{"/dev/ttyACM0"};
   int baudrate{57600};
-  bool autostart{false};
 };
 
 bool validate(const Config &cfg, std::string &error);

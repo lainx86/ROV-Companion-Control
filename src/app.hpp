@@ -34,7 +34,9 @@ private:
   Controller controller_;
   std::vector<std::string> logs_, scan_ips_;
   std::string local_ip_, interface_, message_{"Siap. Tekan H untuk bantuan."};
-  bool running_{true}, auto_started_{false}, scanning_{false};
+  bool running_{true}, scanning_{false};
+  bool startup_start_cancelled_{false};
+  bool startup_target_pending_{false};
   int mode_{0}, edit_index_{0}, scan_index_{0}, log_scroll_{0};
   std::vector<Field> edit_;
   std::thread scan_thread_;
@@ -56,7 +58,8 @@ private:
   void openEdit();
   bool saveEdit();
   void start();
-  void scan();
+  void scan(bool startup = false);
+  void useScanTarget(const std::string &ip);
   void handle(int key);
   void shutdown();
 };

@@ -2,7 +2,6 @@
 #include "network.hpp"
 
 #include <algorithm>
-#include <chrono>
 #include <ctime>
 #include <curses.h>
 #include <utility>
@@ -50,17 +49,9 @@ int App::run() {
     init_pair(2, COLOR_GREEN, -1);
     init_pair(3, COLOR_RED, -1);
   }
-  const auto auto_start =
-      cfg_.autostart
-          ? std::chrono::steady_clock::now() + std::chrono::milliseconds(1500)
-          : std::chrono::steady_clock::time_point::max();
+  scan(true);
   while (running_ && !interrupted_) {
     drain();
-    if (cfg_.autostart && !auto_started_ &&
-        std::chrono::steady_clock::now() >= auto_start) {
-      auto_started_ = true;
-      start();
-    }
     draw();
     const int key = getch();
     if (key != ERR)
@@ -91,22 +82,41 @@ void App::drain() {
     } else if (e.type == EventType::ScanDone) {
       scanning_ = false;
       scan_ips_ = std::move(e.ips);
-      if (scan_ips_.empty())
+      if (scan_ips_.empty()) {
         message_ = "Tidak ditemukan host";
-      else {
+        if (startup_target_pending_) {
+          startup_target_pending_ = false;
+          startup_start_cancelled_ = true;
+          message_ += "; target lama dipertahankan, autostart dibatalkan";
+        }
+      } else if (startup_target_pending_ &&
+                 !chooseScanTarget(scan_ips_, cfg_.ip).empty()) {
+        useScanTarget(chooseScanTarget(scan_ips_, cfg_.ip));
+      } else {
         mode_ = 2;
         scan_index_ = 0;
-        message_ = "Pilih target IP";
+        message_ = startup_target_pending_
+                       ? "Beberapa host ditemukan. Pilih target IP untuk melanjutkan."
+                       : "Pilih target IP";
       }
     } else if (e.type == EventType::ScanError) {
       scanning_ = false;
       message_ = e.text;
+      if (startup_target_pending_) {
+        startup_target_pending_ = false;
+        startup_start_cancelled_ = true;
+        message_ += "; target lama dipertahankan, autostart dibatalkan";
+      }
       logs_.push_back(timestamp() + " [ERROR] " + e.text);
     }
   }
 }
 
 void App::openEdit() {
+  if (startup_target_pending_) {
+    message_ = "Tunggu scan startup dan pemilihan target IP selesai";
+    return;
+  }
   edit_ = {{"Target IP", cfg_.ip},
            {"CAM0 device", cfg_.cam0_device},
            {"CAM0 UDP port", std::to_string(cfg_.cam0_port)},
@@ -115,8 +125,7 @@ void App::openEdit() {
            {"MAV serial device", cfg_.mav_device},
            {"MAV baudrate", std::to_string(cfg_.baudrate)},
            {"MAV UDP out 1", std::to_string(cfg_.mav_port0)},
-           {"MAV UDP out 2", std::to_string(cfg_.mav_port1)},
-           {"Auto start", cfg_.autostart ? "Ya" : "Tidak"}};
+           {"MAV UDP out 2", std::to_string(cfg_.mav_port1)}};
   edit_index_ = 0;
   mode_ = 1;
 }
@@ -133,7 +142,6 @@ bool App::saveEdit() {
     next.baudrate = std::stoi(edit_[6].second);
     next.mav_port0 = std::stoi(edit_[7].second);
     next.mav_port1 = std::stoi(edit_[8].second);
-    next.autostart = edit_[9].second == "Ya";
   } catch (...) {
     message_ = "Nilai angka tidak valid";
     return false;
@@ -150,6 +158,10 @@ bool App::saveEdit() {
 }
 
 void App::start() {
+  if (startup_target_pending_) {
+    message_ = "Tunggu scan startup dan pemilihan target IP selesai";
+    return;
+  }
   std::string error;
   if (!validate(cfg_, error)) {
     message_ = error;
@@ -166,18 +178,20 @@ void App::handle(int key) {
     return;
   }
   if (mode_ == 2) {
-    if (key == 27)
+    if (key == 27) {
       mode_ = 0;
-    else if (key == KEY_UP)
+      if (startup_target_pending_) {
+        startup_target_pending_ = false;
+        startup_start_cancelled_ = true;
+        message_ = "Pemilihan IP dibatalkan; autostart dibatalkan";
+      }
+    } else if (key == KEY_UP)
       scan_index_ = std::max(0, scan_index_ - 1);
     else if (key == KEY_DOWN)
       scan_index_ =
           std::min(static_cast<int>(scan_ips_.size()) - 1, scan_index_ + 1);
     else if (key == '\n' || key == KEY_ENTER) {
-      cfg_.ip = scan_ips_[scan_index_];
-      last_valid_ = cfg_;
-      mode_ = 0;
-      message_ = "Target IP diubah ke " + cfg_.ip;
+      useScanTarget(scan_ips_[scan_index_]);
     }
     return;
   }
@@ -187,16 +201,15 @@ void App::handle(int key) {
       return;
     }
     if (key == KEY_UP)
-      edit_index_ = (edit_index_ + 9) % 10;
+      edit_index_ = (edit_index_ + static_cast<int>(edit_.size()) - 1) % edit_.size();
     else if (key == KEY_DOWN || key == '\t')
-      edit_index_ = (edit_index_ + 1) % 10;
+      edit_index_ = (edit_index_ + 1) % edit_.size();
     else if (key == '\n' || key == KEY_ENTER)
       saveEdit();
-    else if (edit_index_ == 9 && key == ' ')
-      edit_[9].second = edit_[9].second == "Ya" ? "Tidak" : "Ya";
-    else if (key == KEY_BACKSPACE || key == 127 || key == 8)
-      edit_[edit_index_].second.pop_back();
-    else if (key >= 32 && key <= 126 && edit_index_ != 9)
+    else if (key == KEY_BACKSPACE || key == 127 || key == 8) {
+      if (!edit_[edit_index_].second.empty())
+        edit_[edit_index_].second.pop_back();
+    } else if (key >= 32 && key <= 126)
       edit_[edit_index_].second.push_back(static_cast<char>(key));
     return;
   }
@@ -207,6 +220,7 @@ void App::handle(int key) {
     break;
   case 'x':
   case 'X':
+    startup_start_cancelled_ = true;
     controller_.stop();
     message_ = "Semua stream dihentikan";
     break;
@@ -254,7 +268,21 @@ void App::handle(int key) {
   }
 }
 
-void App::scan() {
+void App::useScanTarget(const std::string &ip) {
+  cfg_.ip = ip;
+  last_valid_ = cfg_;
+  mode_ = 0;
+  message_ = "Target IP diubah ke " + cfg_.ip;
+  if (startup_target_pending_) {
+    startup_target_pending_ = false;
+    if (!startup_start_cancelled_ && !interrupted_ && running_)
+      start();
+    else if (!saveConfig(cfg_))
+      message_ += "; gagal menyimpan konfigurasi";
+  }
+}
+
+void App::scan(bool startup) {
   if (scanning_) {
     message_ = "Scan masih berjalan";
     return;
@@ -262,6 +290,7 @@ void App::scan() {
   if (scan_thread_.joinable())
     scan_thread_.join();
   scanning_ = true;
+  startup_target_pending_ = startup;
   scan_cancelled_ = false;
   message_ = "Memindai Ethernet di latar belakang...";
   event(EventType::Log, timestamp() + " [INFO] Scanning Ethernet network...");

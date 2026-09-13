@@ -7,8 +7,15 @@
 
 namespace rov {
 
+// Physical wired Ethernet only; never falls back to the default/Wi-Fi route.
 std::pair<std::string, std::string> localIpv4();
+bool isEthernetInterface(const std::string &name,
+                         const std::string &sysfs_root = "/sys/class/net");
 std::vector<std::string> cidrHosts(const std::string &cidr);
+
+// Prefer the saved target; an ambiguous scan requires manual selection.
+std::string chooseScanTarget(const std::vector<std::string> &ips,
+                             const std::string &preferred_ip);
 
 struct ScanResult {
   std::vector<std::string> ips;

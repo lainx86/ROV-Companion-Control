@@ -5,8 +5,11 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <mutex>
 #include <regex>
+#include <sstream>
 #include <sys/socket.h>
 #include <thread>
 #include <unistd.h>
@@ -25,20 +28,43 @@ std::string commandOutput(const std::string &command) {
   pclose(pipe);
   return result;
 }
-std::string interfaceCidr(const std::string &iface) {
-  if (iface.empty())
-    return {};
-  const auto out =
-      commandOutput("ip -4 -o addr show dev " + iface + " 2>/dev/null");
+struct EthernetAddress {
+  std::string name;
+  std::string ip;
+  std::string cidr;
+};
+
+EthernetAddress ethernetAddress() {
+  // LOWER_UP requires a live link, not just an administratively enabled NIC.
+  std::istringstream links(commandOutput("ip -o link show up 2>/dev/null"));
+  std::string line;
   std::smatch match;
-  return std::regex_search(out, match, std::regex("inet\\s+([0-9.]+/[0-9]+)"))
-             ? match[1].str()
-             : "";
+  const std::regex link_pattern(
+      "^[0-9]+:\\s+([A-Za-z0-9_.:-]+)(?:@[^: ]+)?:\\s+<([^>]+)>");
+  while (std::getline(links, line)) {
+    if (!std::regex_search(line, match, link_pattern))
+      continue;
+    const std::string name = match[1];
+    if (match[2].str().find("LOWER_UP") == std::string::npos ||
+        !isEthernetInterface(name))
+      continue;
+    const auto addresses = commandOutput(
+        "ip -4 -o addr show dev '" + name + "' scope global 2>/dev/null");
+    if (std::regex_search(addresses, match,
+                          std::regex("inet\\s+(([0-9.]+)/[0-9]+)")))
+      return {name, match[2], match[1]};
+  }
+  return {};
 }
-bool tcpAlive(const std::string &ip, int port) {
+bool tcpAlive(const std::string &ip, int port, const std::string &iface) {
   int socket_fd = socket(AF_INET, SOCK_STREAM, 0);
   if (socket_fd < 0)
     return false;
+  if (setsockopt(socket_fd, SOL_SOCKET, SO_BINDTODEVICE, iface.c_str(),
+                 iface.size() + 1) != 0) {
+    close(socket_fd);
+    return false;
+  }
   timeval timeout{0, 500000};
   setsockopt(socket_fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
   sockaddr_in address{};
@@ -51,23 +77,36 @@ bool tcpAlive(const std::string &ip, int port) {
   return alive;
 }
 
-bool hostAlive(const std::string &ip) {
-  const std::string ping = "ping -c 1 -W 1 " + ip + " >/dev/null 2>&1";
+bool hostAlive(const std::string &ip, const std::string &iface) {
+  const std::string ping =
+      "ping -I '" + iface + "' -c 1 -W 1 " + ip + " >/dev/null 2>&1";
   if (std::system(ping.c_str()) == 0)
     return true;
-  return tcpAlive(ip, 22) || tcpAlive(ip, 80) || tcpAlive(ip, 443);
+  return tcpAlive(ip, 22, iface) || tcpAlive(ip, 80, iface) ||
+         tcpAlive(ip, 443, iface);
 }
 } // namespace
 
+bool isEthernetInterface(const std::string &name, const std::string &sysfs_root) {
+  if (!std::regex_match(name, std::regex("[A-Za-z0-9_.:-]+")) ||
+      name == "." || name == "..")
+    return false;
+  const auto path = std::filesystem::path(sysfs_root) / name;
+  std::error_code error;
+  if (!std::filesystem::exists(path / "device", error) || error)
+    return false;
+  for (const auto *marker : {"wireless", "phy80211"}) {
+    if (std::filesystem::exists(path / marker, error) || error)
+      return false;
+  }
+  int type = 0;
+  std::ifstream(path / "type") >> type;
+  return type == 1; // ARPHRD_ETHER, with wireless and virtual devices excluded.
+}
+
 std::pair<std::string, std::string> localIpv4() {
-  const auto route = commandOutput("ip -4 route get 1.1.1.1 2>/dev/null");
-  std::smatch match;
-  std::string ip, iface;
-  if (std::regex_search(route, match, std::regex("\\bsrc\\s+([0-9.]+)")))
-    ip = match[1];
-  if (std::regex_search(route, match, std::regex("\\bdev\\s+(\\S+)")))
-    iface = match[1];
-  return {ip, iface};
+  const auto local = ethernetAddress();
+  return {local.ip, local.name};
 }
 std::vector<std::string> cidrHosts(const std::string &cidr) {
   const auto slash = cidr.find('/');
@@ -103,11 +142,11 @@ std::vector<std::string> cidrHosts(const std::string &cidr) {
 ScanResult scanNetwork(const std::atomic<bool> &cancelled) {
   if (cancelled)
     return {};
-  const auto local = localIpv4();
-  std::string cidr = interfaceCidr(local.second);
-  if (cidr.empty() && !local.first.empty())
-    cidr = local.first.substr(0, local.first.rfind('.')) + ".0/24";
-  const auto hosts = cidrHosts(cidr);
+  const auto local = ethernetAddress();
+  if (local.name.empty())
+    return {{},
+            "Ethernet aktif dengan IPv4 tidak ditemukan (Wi-Fi tidak digunakan)"};
+  const auto hosts = cidrHosts(local.cidr);
   if (hosts.empty())
     return {{}, "Tidak bisa menentukan subnet Ethernet"};
 
@@ -121,7 +160,7 @@ ScanResult scanNetwork(const std::atomic<bool> &cancelled) {
         const auto index = next++;
         if (index >= hosts.size())
           break;
-        if (hostAlive(hosts[index])) {
+        if (hosts[index] != local.ip && hostAlive(hosts[index], local.name)) {
           std::lock_guard<std::mutex> lock(alive_lock);
           result.ips.push_back(hosts[index]);
         }
@@ -132,6 +171,13 @@ ScanResult scanNetwork(const std::atomic<bool> &cancelled) {
     worker.join();
   std::sort(result.ips.begin(), result.ips.end());
   return result;
+}
+
+std::string chooseScanTarget(const std::vector<std::string> &ips,
+                             const std::string &preferred_ip) {
+  if (std::find(ips.begin(), ips.end(), preferred_ip) != ips.end())
+    return preferred_ip;
+  return ips.size() == 1 ? ips.front() : std::string{};
 }
 
 } // namespace rov
