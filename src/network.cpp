@@ -48,8 +48,8 @@ EthernetAddress ethernetAddress() {
     if (match[2].str().find("LOWER_UP") == std::string::npos ||
         !isEthernetInterface(name))
       continue;
-    const auto addresses = commandOutput(
-        "ip -4 -o addr show dev '" + name + "' scope global 2>/dev/null");
+    const auto addresses = commandOutput("ip -4 -o addr show dev '" + name +
+                                         "' scope global 2>/dev/null");
     if (std::regex_search(addresses, match,
                           std::regex("inet\\s+(([0-9.]+)/[0-9]+)")))
       return {name, match[2], match[1]};
@@ -87,9 +87,10 @@ bool hostAlive(const std::string &ip, const std::string &iface) {
 }
 } // namespace
 
-bool isEthernetInterface(const std::string &name, const std::string &sysfs_root) {
-  if (!std::regex_match(name, std::regex("[A-Za-z0-9_.:-]+")) ||
-      name == "." || name == "..")
+bool isEthernetInterface(const std::string &name,
+                         const std::string &sysfs_root) {
+  if (!std::regex_match(name, std::regex("[A-Za-z0-9_.:-]+")) || name == "." ||
+      name == "..")
     return false;
   const auto path = std::filesystem::path(sysfs_root) / name;
   std::error_code error;
@@ -139,13 +140,29 @@ std::vector<std::string> cidrHosts(const std::string &cidr) {
   return hosts;
 }
 
+TargetProbeResult probeTargetOnEthernet(const std::string &ip,
+                                        const std::atomic<bool> &cancelled) {
+  if (cancelled)
+    return {};
+  const auto local = ethernetAddress();
+  if (local.name.empty())
+    return {
+        false,
+        "Ethernet aktif dengan IPv4 tidak ditemukan (Wi-Fi tidak digunakan)"};
+  in_addr address{};
+  if (inet_pton(AF_INET, ip.c_str(), &address) != 1)
+    return {false, "Target IP tidak valid"};
+  return {hostAlive(ip, local.name), {}};
+}
+
 ScanResult scanNetwork(const std::atomic<bool> &cancelled) {
   if (cancelled)
     return {};
   const auto local = ethernetAddress();
   if (local.name.empty())
-    return {{},
-            "Ethernet aktif dengan IPv4 tidak ditemukan (Wi-Fi tidak digunakan)"};
+    return {
+        {},
+        "Ethernet aktif dengan IPv4 tidak ditemukan (Wi-Fi tidak digunakan)"};
   const auto hosts = cidrHosts(local.cidr);
   if (hosts.empty())
     return {{}, "Tidak bisa menentukan subnet Ethernet"};

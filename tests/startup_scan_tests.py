@@ -15,7 +15,8 @@ import time
 
 
 def scenario(binary, name, cidr="192.0.2.1/30", preferred=None,
-             autostart=None, delay=0, action="auto", link="up"):
+             autostart=None, delay=0, action="auto", link="up",
+             config_reachable=False):
     with tempfile.TemporaryDirectory(prefix="rov-startup-") as directory:
         root = Path(directory)
         commands = root / "bin"
@@ -44,7 +45,17 @@ case "$*" in
     fi ;;
 esac
 """,
-            "ping": "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$ROV_TEST_PROBES\"\nsleep \"$ROV_TEST_DELAY\"\nexit 0\n",
+            "ping": """#!/bin/sh
+printf '%s\\n' "$*" >> "$ROV_TEST_PROBES"
+target=""
+for argument in "$@"; do target="$argument"; done
+if [ "$target" = "$ROV_TEST_CONFIG_IP" ]; then
+  [ "$ROV_TEST_CONFIG_REACHABLE" = 1 ] && exit 0
+  exit 1
+fi
+sleep "$ROV_TEST_DELAY"
+case "$target" in 192.0.2.*) exit 0 ;; *) exit 1 ;; esac
+""",
             "gst-launch-1.0": "#!/bin/sh\nprintf '%s\\n' \"$@\" >> \"$ROV_TEST_CALLS\"\n",
             "mavproxy.py": "#!/bin/sh\nprintf '%s\\n' \"$@\" >> \"$ROV_TEST_CALLS\"\n",
         }
@@ -68,7 +79,9 @@ esac
                    ROV_TEST_CIDR=cidr, ROV_TEST_DELAY=str(delay),
                    ROV_TEST_CALLS=str(calls), ROV_TEST_PROBES=str(probes),
                    ROV_TEST_NETWORK_CALLS=str(network_calls),
-                   ROV_TEST_IFACE=ethernet or "missing-wired0", ROV_TEST_LINK=link)
+                   ROV_TEST_IFACE=ethernet or "missing-wired0", ROV_TEST_LINK=link,
+                   ROV_TEST_CONFIG_IP=preferred or "192.168.1.198",
+                   ROV_TEST_CONFIG_REACHABLE="1" if config_reachable else "0")
         master, slave = pty.openpty()
         fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 160, 0, 0))
         child = subprocess.Popen([*emulator, binary], stdin=slave, stdout=slave, stderr=slave,
@@ -96,7 +109,9 @@ esac
                     time.sleep(1.6)
                     assert not calls.exists(), "stream started before scan completed"
                 expected_ip = preferred or "192.168.1.198"
-                if action in ("select", "cancel"):
+                if config_reachable:
+                    expect("Target IP config aktif: " + expected_ip)
+                elif action in ("select", "cancel"):
                     expect("Hasil scan Ethernet")
                     time.sleep(1.6)
                     assert not calls.exists(), "stream started before IP selection"
@@ -159,8 +174,13 @@ esac
             if action == "error":
                 assert not probes.exists(), "probed a host without active Ethernet"
             elif probes.exists():
-                assert all(line.startswith(f"-I {ethernet} -c 1 -W 1 192.0.2.")
-                           for line in probes.read_text().splitlines())
+                probe_lines = probes.read_text().splitlines()
+                assert probe_lines[0].endswith(" " + (preferred or "192.168.1.198"))
+                if config_reachable:
+                    assert len(probe_lines) == 1, "scanned despite reachable config target"
+                else:
+                    assert all(line.startswith(f"-I {ethernet} -c 1 -W 1 ")
+                               for line in probe_lines)
             print(name + ": OK")
         finally:
             if child.poll() is None:
@@ -179,10 +199,10 @@ ethernet = next((path.name for path in sorted(Path("/sys/class/net").iterdir())
                  and not (path / "phy80211").exists()
                  and (path / "type").read_text().strip() == "1"), None)
 if ethernet:
-    scenario(binary, "first launch selects Ethernet peer despite Wi-Fi route")
+    scenario(binary, "down config target falls back to Ethernet scan")
     scenario(binary, "legacy autostart=false still starts all streams", autostart=False)
-    scenario(binary, "saved target preferred among several peers",
-             cidr="192.0.2.1/29", preferred="192.0.2.5")
+    scenario(binary, "reachable config target starts without Ethernet scan",
+             cidr="192.0.2.1/29", preferred="192.0.2.5", config_reachable=True)
     scenario(binary, "ambiguous scan waits for selection", cidr="192.0.2.1/29",
              action="select")
     scenario(binary, "cancel selection suppresses autostart", cidr="192.0.2.1/29",

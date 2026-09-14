@@ -22,6 +22,15 @@ struct ScanResult {
   std::string error;
 };
 
+struct TargetProbeResult {
+  bool reachable{false};
+  std::string error;
+};
+
+// Probes one target over the active physical Ethernet interface only.
+TargetProbeResult probeTargetOnEthernet(const std::string &ip,
+                                        const std::atomic<bool> &cancelled);
+
 // Blocking scan; call from a worker thread. Cancellation stops scheduling
 // probes.
 ScanResult scanNetwork(const std::atomic<bool> &cancelled);

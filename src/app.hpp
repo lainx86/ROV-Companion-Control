@@ -20,7 +20,13 @@ public:
   int run();
 
 private:
-  enum class EventType { Log, Refresh, ScanDone, ScanError };
+  enum class EventType {
+    Log,
+    Refresh,
+    StartupTargetReady,
+    ScanDone,
+    ScanError
+  };
   struct Event {
     EventType type;
     std::string text;

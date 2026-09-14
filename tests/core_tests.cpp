@@ -22,8 +22,8 @@ int main() {
   const char *sysfs_dir = mkdtemp(sysfs_template);
   assert(sysfs_dir);
   const auto sysfs = std::filesystem::path(sysfs_dir);
-  for (const auto *name : {"eth0", "enp3s0", "usb0", "eth_wifi", "wlan0",
-                           "docker0", "lo"}) {
+  for (const auto *name :
+       {"eth0", "enp3s0", "usb0", "eth_wifi", "wlan0", "docker0", "lo"}) {
     const auto path = sysfs / name;
     std::filesystem::create_directory(path);
     std::ofstream(path / "type") << (std::string(name) == "lo" ? 772 : 1);
@@ -63,11 +63,14 @@ int main() {
   std::atomic<bool> cancelled{true};
   const auto scan = scanNetwork(cancelled);
   assert(scan.ips.empty() && scan.error.empty());
+  const auto probe = probeTargetOnEthernet("192.168.1.198", cancelled);
+  assert(!probe.reachable && probe.error.empty());
   assert(chooseScanTarget({}, "192.168.1.198").empty());
   assert(chooseScanTarget({"192.168.1.20"}, "192.168.1.198") == "192.168.1.20");
   assert(chooseScanTarget({"192.168.1.20", "192.168.1.198"}, "192.168.1.198") ==
          "192.168.1.198");
-  assert(chooseScanTarget({"192.168.1.20", "192.168.1.30"}, "192.168.1.198").empty());
+  assert(chooseScanTarget({"192.168.1.20", "192.168.1.30"}, "192.168.1.198")
+             .empty());
   assert(routineOutput("Setting pipeline to PLAYING ..."));
   assert(!routineOutput("ERROR: camera unavailable"));
 

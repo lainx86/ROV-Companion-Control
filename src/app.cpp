@@ -79,6 +79,12 @@ void App::drain() {
       logs_.push_back(std::move(e.text));
       if (logs_.size() > kMaxLogs)
         logs_.erase(logs_.begin());
+    } else if (e.type == EventType::StartupTargetReady) {
+      scanning_ = false;
+      startup_target_pending_ = false;
+      message_ = "Target IP config aktif: " + e.text + "; memulai semua stream";
+      if (!startup_start_cancelled_ && !interrupted_ && running_)
+        start();
     } else if (e.type == EventType::ScanDone) {
       scanning_ = false;
       scan_ips_ = std::move(e.ips);
@@ -95,9 +101,10 @@ void App::drain() {
       } else {
         mode_ = 2;
         scan_index_ = 0;
-        message_ = startup_target_pending_
-                       ? "Beberapa host ditemukan. Pilih target IP untuk melanjutkan."
-                       : "Pilih target IP";
+        message_ =
+            startup_target_pending_
+                ? "Beberapa host ditemukan. Pilih target IP untuk melanjutkan."
+                : "Pilih target IP";
       }
     } else if (e.type == EventType::ScanError) {
       scanning_ = false;
@@ -201,7 +208,8 @@ void App::handle(int key) {
       return;
     }
     if (key == KEY_UP)
-      edit_index_ = (edit_index_ + static_cast<int>(edit_.size()) - 1) % edit_.size();
+      edit_index_ =
+          (edit_index_ + static_cast<int>(edit_.size()) - 1) % edit_.size();
     else if (key == KEY_DOWN || key == '\t')
       edit_index_ = (edit_index_ + 1) % edit_.size();
     else if (key == '\n' || key == KEY_ENTER)
@@ -292,9 +300,30 @@ void App::scan(bool startup) {
   scanning_ = true;
   startup_target_pending_ = startup;
   scan_cancelled_ = false;
-  message_ = "Memindai Ethernet di latar belakang...";
-  event(EventType::Log, timestamp() + " [INFO] Scanning Ethernet network...");
-  scan_thread_ = std::thread([this] {
+  message_ = startup ? "Mengecek target IP config..."
+                     : "Memindai Ethernet di latar belakang...";
+  scan_thread_ = std::thread([this, startup] {
+    if (startup) {
+      event(EventType::Log, timestamp() + " [INFO] Mengecek target IP config " +
+                                cfg_.ip + "...");
+      const auto probe = probeTargetOnEthernet(cfg_.ip, scan_cancelled_);
+      if (scan_cancelled_)
+        return;
+      if (probe.reachable) {
+        event(EventType::StartupTargetReady, cfg_.ip);
+        return;
+      }
+      if (!probe.error.empty()) {
+        event(EventType::ScanError, std::move(probe.error));
+        return;
+      }
+      event(EventType::Log,
+            timestamp() +
+                " [INFO] Target IP config tidak aktif; scanning Ethernet...");
+    } else {
+      event(EventType::Log,
+            timestamp() + " [INFO] Scanning Ethernet network...");
+    }
     auto result = scanNetwork(scan_cancelled_);
     if (scan_cancelled_)
       return;

@@ -43,11 +43,12 @@ Jalankan dari terminal minimal 78×22:
 ./build/rov_control
 ```
 
-Saat aplikasi dibuka, scan jaringan langsung berjalan di latar belakang. IP lokal
-perangkat sendiri tidak dimasukkan ke hasil scan. Target tersimpan dipakai jika
-masih ditemukan; jika hanya ada satu host, IP host itu langsung diterapkan dan
-disimpan. Jika ada beberapa host tanpa kecocokan target, pilih IP melalui panel
-hasil scan. Tombol `N` tetap membuka scan manual.
+Saat aplikasi dibuka, aplikasi lebih dahulu mencoba target IP yang tersimpan di
+konfigurasi melalui Ethernet. Jika target merespons, IP tersebut langsung dipakai
+dan semua stream dimulai tanpa scan subnet. Jika target tidak merespons, aplikasi
+baru memindai Ethernet. IP lokal perangkat sendiri tidak dimasukkan ke hasil scan.
+Satu-satunya host hasil scan langsung diterapkan dan disimpan; beberapa kandidat
+ditampilkan untuk dipilih. Tombol `N` tetap membuka scan manual.
 
 Setelah target IP startup diterapkan, CAM0, CAM1, dan MAVProxy langsung dimulai
 dengan IP tersebut, tanpa perlu menekan `S`. Field `autostart` dari konfigurasi
