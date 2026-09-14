@@ -16,14 +16,15 @@ void Controller::start(const Config &cfg) {
   }
   stop();
   processes_.clear();
-  auto camera = [&](const std::string &device, int port) {
+  auto camera = [&](const std::string &device, int port, int frame_rate) {
     return std::vector<std::string>{
         "gst-launch-1.0",
         "-q",
         "v4l2src",
         "device=" + device,
         "!",
-        "image/jpeg,width=1280,height=720,framerate=30/1",
+        "image/jpeg,width=1280,height=720,framerate=" +
+            std::to_string(frame_rate) + "/1",
         "!",
         "queue",
         "max-size-buffers=2",
@@ -51,15 +52,14 @@ void Controller::start(const Config &cfg) {
         "async=false"};
   };
   processes_.push_back(std::make_unique<ManagedProcess>(
-      "CAM0", camera(cfg.cam0_device, cfg.cam0_port), log_, changed_));
+      "CAM0", camera(cfg.cam0_device, cfg.cam0_port, 24), log_, changed_));
   processes_.push_back(std::make_unique<ManagedProcess>(
-      "CAM1", camera(cfg.cam1_device, cfg.cam1_port), log_, changed_));
+      "CAM1", camera(cfg.cam1_device, cfg.cam1_port, 30), log_, changed_));
   processes_.push_back(std::make_unique<ManagedProcess>(
       "MAVProxy",
       std::vector<std::string>{
           "mavproxy.py", "--master=" + cfg.mav_device,
-          "--baudrate=" + std::to_string(cfg.baudrate),
-          "--streamrate=50",
+          "--baudrate=" + std::to_string(cfg.baudrate), "--streamrate=50",
           "--out=udp:" + cfg.ip + ":" + std::to_string(cfg.mav_port0),
           "--out=udp:" + cfg.ip + ":" + std::to_string(cfg.mav_port1)},
       log_, changed_));

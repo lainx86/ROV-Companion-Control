@@ -56,8 +56,8 @@ fi
 sleep "$ROV_TEST_DELAY"
 case "$target" in 192.0.2.*) exit 0 ;; *) exit 1 ;; esac
 """,
-            "gst-launch-1.0": "#!/bin/sh\nprintf '%s\\n' \"$@\" >> \"$ROV_TEST_CALLS\"\n",
-            "mavproxy.py": "#!/bin/sh\nprintf '%s\\n' \"$@\" >> \"$ROV_TEST_CALLS\"\n",
+            "gst-launch-1.0": "#!/bin/sh\nprintf '[GSTREAMER] %s\\n' \"$*\" >> \"$ROV_TEST_CALLS\"\n",
+            "mavproxy.py": "#!/bin/sh\nprintf '[MAVPROXY] %s\\n' \"$*\" >> \"$ROV_TEST_CALLS\"\n",
         }
         for command, contents in scripts.items():
             path = commands / command
@@ -137,6 +137,8 @@ case "$target" in 192.0.2.*) exit 0 ;; *) exit 1 ;; esac
                     stream_args = calls.read_text()
                     assert stream_args.count("host=" + expected_ip) == 2
                     assert "port=5070" in stream_args and "port=5090" in stream_args
+                    assert "device=/dev/video0 ! image/jpeg,width=1280,height=720,framerate=24/1" in stream_args
+                    assert "device=/dev/video2 ! image/jpeg,width=1280,height=720,framerate=30/1" in stream_args
                     assert stream_args.count("--master=") == 1
                     assert "--streamrate=50" in stream_args
                     assert "--out=udp:" + expected_ip + ":14550" in stream_args

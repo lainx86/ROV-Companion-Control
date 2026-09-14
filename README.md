@@ -123,3 +123,4 @@ Konfigurasi kompatibel dengan aplikasi Python sebelumnya dan tetap berada di `~/
 `mavproxy.py` harus tersedia dalam `PATH`, terutama saat dijalankan dari service.
 MAVProxy dijalankan dengan `--streamrate=50`. Output GStreamer dan MAVProxy tidak
 menulis langsung ke terminal; seluruh error dan diagnostic masuk ke panel log TUI.
+Pipeline CAM0 memakai 24 FPS, sedangkan CAM1 memakai 30 FPS.
