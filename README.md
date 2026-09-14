@@ -120,4 +120,6 @@ Konfigurasi kompatibel dengan aplikasi Python sebelumnya dan tetap berada di `~/
 
 ## Catatan
 
-`mavproxy.py` harus tersedia dalam `PATH`, terutama saat dijalankan dari service. Output GStreamer dan MAVProxy tidak menulis langsung ke terminal; seluruh error dan diagnostic masuk ke panel log TUI.
+`mavproxy.py` harus tersedia dalam `PATH`, terutama saat dijalankan dari service.
+MAVProxy dijalankan dengan `--streamrate=50`. Output GStreamer dan MAVProxy tidak
+menulis langsung ke terminal; seluruh error dan diagnostic masuk ke panel log TUI.

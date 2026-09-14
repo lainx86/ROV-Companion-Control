@@ -59,6 +59,7 @@ void Controller::start(const Config &cfg) {
       std::vector<std::string>{
           "mavproxy.py", "--master=" + cfg.mav_device,
           "--baudrate=" + std::to_string(cfg.baudrate),
+          "--streamrate=50",
           "--out=udp:" + cfg.ip + ":" + std::to_string(cfg.mav_port0),
           "--out=udp:" + cfg.ip + ":" + std::to_string(cfg.mav_port1)},
       log_, changed_));

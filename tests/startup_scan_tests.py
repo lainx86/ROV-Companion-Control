@@ -138,6 +138,7 @@ case "$target" in 192.0.2.*) exit 0 ;; *) exit 1 ;; esac
                     assert stream_args.count("host=" + expected_ip) == 2
                     assert "port=5070" in stream_args and "port=5090" in stream_args
                     assert stream_args.count("--master=") == 1
+                    assert "--streamrate=50" in stream_args
                     assert "--out=udp:" + expected_ip + ":14550" in stream_args
                     assert "--out=udp:" + expected_ip + ":14551" in stream_args
                     if action == "manual":
