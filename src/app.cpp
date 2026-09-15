@@ -132,7 +132,8 @@ void App::openEdit() {
            {"MAV serial device", cfg_.mav_device},
            {"MAV baudrate", std::to_string(cfg_.baudrate)},
            {"MAV UDP out 1", std::to_string(cfg_.mav_port0)},
-           {"MAV UDP out 2", std::to_string(cfg_.mav_port1)}};
+           {"MAV UDP out 2", std::to_string(cfg_.mav_port1)},
+           {"MAVProxy path", cfg_.mavproxy_path}};
   edit_index_ = 0;
   mode_ = 1;
 }
@@ -149,6 +150,7 @@ bool App::saveEdit() {
     next.baudrate = std::stoi(edit_[6].second);
     next.mav_port0 = std::stoi(edit_[7].second);
     next.mav_port1 = std::stoi(edit_[8].second);
+    next.mavproxy_path = edit_[9].second;
   } catch (...) {
     message_ = "Nilai angka tidak valid";
     return false;

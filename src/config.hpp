@@ -11,7 +11,8 @@ struct Config {
   std::string cam1_device{"/dev/video2"};
   int cam1_port{5090};
   int mav_port0{14550};
-  int mav_port1{14551};
+  int mav_port1{14552};
+  std::string mavproxy_path{"mavproxy.py"};
   std::string mav_device{"/dev/ttyACM0"};
   int baudrate{57600};
 };

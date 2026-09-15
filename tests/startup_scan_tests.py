@@ -142,7 +142,7 @@ case "$target" in 192.0.2.*) exit 0 ;; *) exit 1 ;; esac
                     assert stream_args.count("--master=") == 1
                     assert "--streamrate=50" in stream_args
                     assert "--out=udp:" + expected_ip + ":14550" in stream_args
-                    assert "--out=udp:" + expected_ip + ":14551" in stream_args
+                    assert "--out=udp:" + expected_ip + ":14552" in stream_args
                     if action == "manual":
                         output = b""
                         os.write(master, b"n")
@@ -153,8 +153,8 @@ case "$target" in 192.0.2.*) exit 0 ;; *) exit 1 ;; esac
                         output = b""
                         os.write(master, b"e")
                         expect("Edit konfigurasi")
-                        # Up from the first field wraps to MAV UDP out 2.
-                        os.write(master, b"\x1bOA" + b"\x7f" * 5 + b"14600\n")
+                        # Up from the first field wraps to MAVProxy path.
+                        os.write(master, b"\x1bOA" + b"\x7f" * 11 + b"custom-mavproxy\n")
                         expect("Konfigurasi diterapkan.")
                     time.sleep(0.3)
                     assert calls.read_text() == stream_args, "streams started more than once"
@@ -167,8 +167,9 @@ case "$target" in 192.0.2.*) exit 0 ;; *) exit 1 ;; esac
                 saved = json.loads(config_file.read_text())
                 assert saved["ip"] == expected_ip
                 assert "autostart" not in saved
+                assert saved["mavproxy_path"] == ("custom-mavproxy" if action == "edit" else "mavproxy.py")
                 if action == "edit":
-                    assert saved["mav_port1"] == 14600
+                    assert saved["mav_port1"] == 14552
             else:
                 assert not calls.exists(), "streams started during shutdown"
             assert "route" not in network_calls.read_text()
@@ -213,7 +214,7 @@ if ethernet:
     scenario(binary, "autostart waits for slow scan", delay=2, autostart=True)
     scenario(binary, "stop during scan cancels automatic start", delay=2, action="stop")
     scenario(binary, "manual scan does not restart streams", action="manual")
-    scenario(binary, "edit navigation after removing autostart option", action="edit")
+    scenario(binary, "edit MAVProxy path", action="edit")
     scenario(binary, "quit while scanning", delay=2, action="quit")
 else:
     print("SKIP successful-scan PTY scenarios: no physical Ethernet metadata")

@@ -46,8 +46,8 @@ bool validate(const Config &cfg, std::string &error) {
     return false;
   }
   if (cfg.cam0_device.empty() || cfg.cam1_device.empty() ||
-      cfg.mav_device.empty()) {
-    error = "Device kamera dan MAV tidak boleh kosong";
+      cfg.mav_device.empty() || cfg.mavproxy_path.empty()) {
+    error = "Device kamera, MAV, dan path MAVProxy tidak boleh kosong";
     return false;
   }
   if (!validPort(cfg.cam0_port) || !validPort(cfg.cam1_port) ||
@@ -73,6 +73,8 @@ bool saveConfig(const Config &cfg) {
        << "  \"cam1_port\": " << cfg.cam1_port << ",\n"
        << "  \"mav_port0\": " << cfg.mav_port0 << ",\n"
        << "  \"mav_port1\": " << cfg.mav_port1 << ",\n"
+       << "  \"mavproxy_path\": \"" << jsonEscape(cfg.mavproxy_path)
+       << "\",\n"
        << "  \"mav_device\": \"" << jsonEscape(cfg.mav_device) << "\",\n"
        << "  \"baudrate\": " << cfg.baudrate << "\n}\n";
   return static_cast<bool>(file);
@@ -98,6 +100,7 @@ Config loadConfig() {
   stringField("ip", cfg.ip);
   stringField("cam0_device", cfg.cam0_device);
   stringField("cam1_device", cfg.cam1_device);
+  stringField("mavproxy_path", cfg.mavproxy_path);
   stringField("mav_device", cfg.mav_device);
   intField("cam0_port", cfg.cam0_port);
   intField("cam1_port", cfg.cam1_port);

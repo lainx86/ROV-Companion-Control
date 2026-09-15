@@ -58,7 +58,7 @@ void Controller::start(const Config &cfg) {
   processes_.push_back(std::make_unique<ManagedProcess>(
       "MAVProxy",
       std::vector<std::string>{
-          "mavproxy.py", "--master=" + cfg.mav_device,
+          cfg.mavproxy_path, "--master=" + cfg.mav_device,
           "--baudrate=" + std::to_string(cfg.baudrate), "--streamrate=50",
           "--out=udp:" + cfg.ip + ":" + std::to_string(cfg.mav_port0),
           "--out=udp:" + cfg.ip + ":" + std::to_string(cfg.mav_port1)},

@@ -52,6 +52,9 @@ int main() {
   config.mav_device.clear();
   assert(!validate(config, error));
   config = Config{};
+  config.mavproxy_path.clear();
+  assert(!validate(config, error));
+  config = Config{};
   config.baudrate = 0;
   assert(!validate(config, error));
 
