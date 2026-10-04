@@ -1,18 +1,18 @@
 #include "app.hpp"
 
 #include <algorithm>
-#include <cstring>
 #include <curses.h>
 
 namespace rov {
 
 namespace {
-constexpr const char *kWordmark[5] = {
-    "       _   _            _    _       ",
-    "      / \\ | |_ ___ _ __| | _(_) __ _ ",
-    "     / _ \\| __/ _ \\ '__| |/ / |/ _` |",
-    "    / ___ \\ ||  __/ |  |   <| | (_| |",
-    "   /_/   \\_\\__\\___|_|  |_|\\_\\_|\\__,_|"};
+constexpr const char *kWordmark[6] = {
+    u8" █████╗ ████████╗███████╗██████╗ ██╗  ██╗██╗ █████╗",
+    u8"██╔══██╗╚══██╔══╝██╔════╝██╔══██╗██║ ██╔╝██║██╔══██╗",
+    u8"███████║   ██║   █████╗  ██████╔╝█████╔╝ ██║███████║",
+    u8"██╔══██║   ██║   ██╔══╝  ██╔══██╗██╔═██╗ ██║██╔══██║",
+    u8"██║  ██║   ██║   ███████╗██║  ██║██║  ██╗██║██║  ██║",
+    u8"╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═╝"};
 } // namespace
 
 void App::add(int y, int x, const std::string &value, int width, int attr) {
@@ -50,12 +50,9 @@ std::vector<std::string> App::wrapLogs(int width) const {
   return out;
 }
 
-void App::wordmark(int x, int width) {
-  for (int i = 0; i < 5; ++i)
-    add(4 + i,
-        x + std::max(1,
-                     (width - static_cast<int>(std::strlen(kWordmark[i]))) / 2),
-        kWordmark[i], width - 2, COLOR_PAIR(1) | A_DIM);
+void App::wordmark(int x, int) {
+  for (int i = 0; i < 6; ++i)
+    add(4 + i, x + 2, kWordmark[i], -1, COLOR_PAIR(1) | A_DIM);
 }
 
 void App::draw() {
@@ -73,10 +70,10 @@ void App::draw() {
       "Local: " + (local_ip_.empty() ? std::string("-") : local_ip_) +
           (interface_.empty() ? "" : " (" + interface_ + ")"),
       34);
-  const bool brand = cols >= 145;
+  const bool brand = cols >= 155;
   int config_x = 1, config_w, status_x, status_w;
   if (brand) {
-    int usable = cols - 4, brand_w = std::max(48, usable * 34 / 100);
+    int usable = cols - 4, brand_w = std::max(58, usable * 34 / 100);
     config_x = brand_w + 2;
     config_w = std::max(48, usable * 36 / 100);
     status_x = config_x + config_w + 1;
